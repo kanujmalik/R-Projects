@@ -1,0 +1,118 @@
+---
+title: "R_Lab5"
+author: '35049410'
+date: "4 November 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidyverse)
+library(lubridate)
+
+#1.
+
+#Read CSV Data
+storm <- read.csv("Australia_severe_storms_1975-2015.csv", stringsAsFactors=FALSE)
+
+#Combine comments columns into a single 'All.comments' column
+storm$All.comments <- str_c(storm$Comments,"",storm$X,"",storm$X.1,"",storm$X.2,storm$X.3,storm$X.4)
+
+#select columns for analysis
+DF <- select(storm,Event.ID,Database,Date.Time,State,All.comments)
+DF$Date.Time <- dmy_hm(DF$Date.Time)
+
+#add command - type
+print(sapply(DF,class))
+```
+
+```{r}
+#2.
+#Sort out terms relating to flash floods:
+expr <- "\\b[fF]lash flood"
+
+#Create indicator variable for flash floods
+DF$is_ff <- str_detect(DF$All.comments,expr)
+
+#Create a dataframe with only flash flood values
+tempDF <- filter(DF,is_ff==TRUE)
+tempDF$Year <- year(tempDF$Date.Time)
+
+#Calculate flash floods per year(count Group by Year)
+df_ff <- tempDF %>%
+  group_by(Year) %>%
+  summarise(avg_count = n())
+
+#Plot graph
+ggplot(df_ff) + geom_line(aes(x=Year,y=avg_count)) +
+  labs(x="Year",y="Flash Floods",title="Flash Floods per year")
+```
+
+```{r}
+#3.
+#km/hr:
+#Regex for km/hr values
+expr_wind_km <- "\\w+ (km/hr)"
+DF$wind_speed <- str_extract(DF$All.comments,expr_wind_km)
+
+#Extract just the numbers (Remove "km/hr")
+DF$wind_speed <- sub("\\km/hr.*","",DF$wind_speed)
+
+#Filter out non-numeric values
+DF_windspeed_km <- filter(DF,!is.na(as.numeric(wind_speed)))
+
+#Convert to kt
+DF_windspeed_km$wind_speed <- as.character(as.numeric(DF_windspeed_km$wind_speed)/1.852)
+
+#New data frame for km values
+DF_windspeed_km_reduced <- select(DF_windspeed_km,State,wind_speed)
+
+
+#kt:
+#Regex for kt values
+expr_wind_kt <- "\\w+ (kt|kts)"
+DF$wind_speed <- str_extract(DF$All.comments,expr_wind_kt)
+
+#Extract just the numbers (Remove "kt/kts")
+DF$wind_speed <- sub("\\kt.*","",DF$wind_speed)
+
+#Filter out non-numeric values
+DF_windspeed_kt <- filter(DF,!is.na(as.numeric(wind_speed)))
+
+#New data frame for kt values
+DF_windspeed_kt_reduced <- select(DF_windspeed_kt,State,wind_speed)
+
+#Merge the two data frames
+DF_Final <- rbind(DF_windspeed_km_reduced,DF_windspeed_kt_reduced)
+
+#Round off values
+DF_Final$wind_speed <- as.numeric(ceiling(as.numeric(DF_Final$wind_speed)))
+
+#Boxplot
+ggplot(DF_Final) + geom_boxplot(aes(x=State,y=wind_speed)) +
+  labs(x="State",y="Wind Speed",title="Wind Speeds per State")
+
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
